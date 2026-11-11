@@ -84,8 +84,8 @@ android {
 
     defaultConfig {
         applicationId = "com.andrerinas.headunitmedia"
-        minSdk = 16
-        targetSdk = 29
+        minSdk = 21
+        targetSdk = 28
         versionCode = 123
         versionName = "4.0.0"
         setProperty("archivesBaseName", "${applicationId}_${versionName}")
@@ -111,7 +111,7 @@ android {
         }
         create("github") {
             dimension = "distribution"
-            // Default minSdk 16 from defaultConfig is used
+            minSdk = 21
         }
     }
 
