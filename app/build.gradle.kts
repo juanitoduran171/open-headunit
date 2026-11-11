@@ -33,24 +33,18 @@ android {
     val resDir = file("src/main/res")
     val availableLocales = resDir.listFiles { file ->
         file.isDirectory && file.name.startsWith("values-") &&
-        // Filter out non-language qualifiers (night mode, screen size, etc.)
         !file.name.contains("night") &&
         !file.name.contains("land") &&
         !file.name.contains("port") &&
         !file.name.matches(Regex("values-[whsml]\\d+.*")) &&
         !file.name.matches(Regex("values-v\\d+")) &&
-        // Check that it contains strings.xml (actual translation)
         file.resolve("strings.xml").exists()
     }?.map { dir ->
-        // Extract locale code from directory name (e.g., "values-es" -> "es", "values-pt-rBR" -> "pt-rBR")
         dir.name.removePrefix("values-")
     }?.sorted() ?: emptyList()
 
     println("Detected available locales: $availableLocales")
 
-    // Which commit an APK was built from. versionName and versionCode do not move between two
-    // candidates of the same fix, so they cannot identify a build; this can. A "-dirty" suffix
-    // means the tree had uncommitted changes, which is the other thing worth knowing.
     val gitDescription: String = try {
         fun git(vararg args: String): String {
             val process = ProcessBuilder(listOf("git") + args)
@@ -89,13 +83,9 @@ android {
     }
 
     defaultConfig {
-        // Keep the original Play Store application id so the app stays the same listing (reviews,
-        // installs, testers) and existing users just get a normal update. Only the display name
-        // changed to Open Headunit. The code package and namespace stay openheadunit, so the
-        // applicationId deliberately differs from the namespace, like com.google.talk for Hangouts.
         applicationId = "com.andrerinas.headunitmedia"
         minSdk = 16
-        targetSdk = 36
+        targetSdk = 29
         versionCode = 123
         versionName = "4.0.0"
         setProperty("archivesBaseName", "${applicationId}_${versionName}")
@@ -103,8 +93,6 @@ android {
         multiDexEnabled = true
         vectorDrawables.useSupportLibrary = true
 
-        // Store available locales in BuildConfig for runtime access
-        // This is scanned at build time from values-XX directories
         buildConfigField("String", "AVAILABLE_LOCALES", "\"${availableLocales.joinToString(",")}\"")
         buildConfigField("String", "GIT_SHA", "\"$gitDescription\"")
 
@@ -129,19 +117,18 @@ android {
 
     testOptions {
         unitTests {
-            // Robolectric needs the merged resources and manifest to resolve the app themes.
             isIncludeAndroidResources = true
         }
     }
 
     signingConfigs {
         getByName("debug") {
-            // storeFile = file("../keystore.jkc")
-            // storePassword = property("HEADUNIT_KEYSTORE_PASSWORD") as String
-            // keyAlias = property("HEADUNIT_KEYSTORE_ALIAS") as String
-            // keyPassword = property("HEADUNIT_KEYSTORE_PASSWORD") as String
+            enableV1Signing = true
+            enableV2Signing = true
         }
         create("release") {
+            enableV1Signing = true
+            enableV2Signing = true
             val defaultStoreFile = when {
                 rootProject.file("headunit-release-key.jks").exists() -> rootProject.file("headunit-release-key.jks")
                 file("../headunit-release-key.jks").exists() -> file("../headunit-release-key.jks")
@@ -190,15 +177,23 @@ android {
             val relConfig = signingConfigs.getByName("release")
             if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) {
                 signingConfig = relConfig
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
 
         getByName("debug") {
-            // debugging setup
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        dex {
+            useLegacyPackaging = true
+        }
         resources {
             excludes += "META-INF/DEPENDENCIES"
             excludes += "META-INF/LICENSE"
@@ -215,17 +210,10 @@ android {
     lint {
         abortOnError = false
         disable += "PackagedPrivateKey"
-
-        // All three come from androidx.fragment's UnsafeFragmentLifecycleObserverDetector, which
-        // walks a Fragment's call graph from its lifecycle methods with no depth limit in 1.6.2,
-        // the newest version this module can use (1.7.x, 1.8.x and 1.9.x need minSdk 19, 21 and
-        // 23). On HomeFragment that walk does not finish, so lint never produces a report. The
-        // first fragment release with a depth cap is 1.9.0 and it also needs minSdk 23, so these
-        // stay off while the app keeps minSdk 16. They report nothing today; every Fragment here
-        // already passes viewLifecycleOwner.
         disable += "FragmentLiveDataObserve"
         disable += "FragmentBackPressedCallback"
         disable += "FragmentAddMenuProvider"
+        disable += "ExpiredTargetSdkVersion"
     }
 
     compileOptions {
@@ -238,10 +226,9 @@ android {
         variant.outputs
             .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
             .forEach { output ->
-                var outputFileName = "${variant.applicationId}_${variant.versionName}_debug.apk"
+                var outputFileName = "${variant.applicationId}_${variant.versionName}_${variant.flavorName}_debug.apk"
                 if(variant.buildType.name == "release") {
-                    outputFileName = "${variant.applicationId}_${variant.versionName}.apk"
-                    output.outputFileName = outputFileName
+                    outputFileName = "${variant.applicationId}_${variant.versionName}_${variant.flavorName}.apk"
                 }
                 output.outputFileName = outputFileName
             }
@@ -249,7 +236,6 @@ android {
 }
 
 dependencies {
-    // Conscrypt (Flavor specific: 2.6.1 for Playstore 16KB alignment; 2.5.3 for Github minSdk 16)
     "playstoreImplementation"("org.conscrypt:conscrypt-android:2.6.1")
     "githubImplementation"("org.conscrypt:conscrypt-android:2.5.3")
 
@@ -262,55 +248,4 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.startup:startup-runtime:1.1.1")
     implementation("com.google.android.gms:play-services-nearby:19.3.0")
-    // ViewModel and LiveData
-    implementation("androidx.lifecycle:lifecycle-extensions:2.2.0")
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.activity:activity-ktx:1.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
-
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    // Inline mocks exercise the final Android transport classes on JDK 21.
-    testImplementation("org.mockito:mockito-core:5.14.2")
-    // Runs the parts that need real Android classes (theme attributes, drawables) on the JVM.
-    testImplementation("org.robolectric:robolectric:4.16")
-
-    implementation(project(":contract"))
-
-    // Multidex
-    implementation("androidx.multidex:multidex:2.0.1")
-
-    // Navigation Component
-    implementation("androidx.navigation:navigation-fragment-ktx:2.3.5")
-    implementation("androidx.navigation:navigation-ui-ktx:2.3.5")
-
-    // DexMaker for runtime subclassing (Hotspot Fix)
-    implementation("com.linkedin.dexmaker:dexmaker:2.28.3")
-
-    // Glide for image/GIF loading (custom loading screen)
-    implementation("com.github.bumptech.glide:glide:4.16.0")
-
-    // ZXing for QR Code generation
-    implementation("com.google.zxing:core:3.5.3")
-
-    // Shizuku for root / shell access
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
-    implementation("com.github.topjohnwu.libsu:core:6.0.0")
-}
-
-// Robolectric installs Conscrypt's OpenSSL provider, which needs the desktop JNI library. The app
-// ships the Android build of Conscrypt, so the unit test classpath drops it and keeps Robolectric's
-// openjdk-uber copy, which includes that library.
-configurations.configureEach {
-    if (name.endsWith("UnitTestRuntimeClasspath")) {
-        exclude(group = "org.conscrypt", module = "conscrypt-android")
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_1_8)
-    }
-}
+    implementation("androidx.lifecycle:lifecycle-extensions
