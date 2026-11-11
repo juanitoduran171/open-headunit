@@ -10,14 +10,12 @@
         <package android:name="com.xygala.bluetooth" />
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="com.syu.ms" />
-        <!-- Rootless HCT bridge discovery when SELinux hides /dev/goc_serial. -->
         <package android:name="android.microntek.mtcser" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <package android:name="com.google.android.projection.gearhead" />
-        <!-- OEM AA/CarPlay apps that conflict with Open Headunit -->
         <package android:name="com.zjinnova.zlink" />
         <package android:name="com.syu.carlink" />
         <package android:name="com.zjinnova.zlink5" />
@@ -53,8 +51,9 @@
         android:name="android.hardware.bluetooth"
         android:required="false" />
 
+    <!-- Usamos ${applicationId} para que no choque con el APK original -->
     <permission
-        android:name="com.andrerinas.openheadunit.permission.NAVIGATION_UPDATE"
+        android:name="${applicationId}.permission.NAVIGATION_UPDATE"
         android:protectionLevel="signature" />
 
     <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
@@ -88,20 +87,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Declared so the microphone type can be claimed; it is only ever requested when
-         RECORD_AUDIO is actually granted, because claiming it without throws on Android 14+. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <!--
-        Only requested up to API 32. From API 33 (Android 13) a granted READ_LOGS makes the app a
-        privileged logd reader, which routes every `logcat` spawn through LogcatManagerService: the
-        system log-access consent dialog when the app is foreground, a silent downgrade to own-UID
-        logs when it is a background service. Nothing (pm grant, a property, a setting) suppresses
-        that. Without the permission the app is an ordinary reader and logd serves its own UID's
-        lines - Java and native - immediately and with no dialog, which is what LogExporter needs.
-        Pre-13 there is no LogcatManagerService, so there the permission still buys system-wide
-        logs for free.
-    -->
     <uses-permission
         android:name="android.permission.READ_LOGS"
         android:maxSdkVersion="32"
@@ -109,6 +96,7 @@
 
     <application
         android:name=".App"
+        android:extractNativeLibs="true"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/title"
@@ -125,15 +113,8 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:theme="@style/AppTheme">
-
         </activity>
 
-        <!--
-            excludeFromRecents/noHistory/taskAffinity: this is a translucent trampoline the system
-            launches on every USB attach once it is the default handler. Without them it lands in
-            the app's own task and lingers there, so a later attach can be delivered to a stale
-            instance instead of starting a fresh one.
-        -->
         <activity
             android:name=".app.UsbAttachedActivity"
             android:directBootAware="true"
@@ -151,7 +132,6 @@
                 android:resource="@xml/usb_device_filter" />
         </activity>
 
-
         <activity
             android:name=".main.MainActivity"
             android:configChanges="keyboardHidden|uiMode"
@@ -163,22 +143,7 @@
             <!-- Primary Launcher Filter -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-
-            <!-- Navigation Role Registration (allows selecting as default nav app) -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.APP_MAPS" />
-                <category android:name="android.intent.category.APP_NAVIGATION" />
-            </intent-filter>
-
-            <!-- Navigation Intent Filter (handles system navigate actions) -->
-            <intent-filter>
-                <action android:name="android.intent.action.NAVIGATE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -186,47 +151,12 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
 
-            <!-- Navigation Intent Filters & Deep Links -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="headunit" />
                 <data android:host="selfmode" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="geo" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="google.navigation" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="maps.google.com"
-                    android:scheme="http" />
-                <data
-                    android:host="maps.google.com"
-                    android:scheme="https" />
             </intent-filter>
         </activity>
 
@@ -248,14 +178,6 @@
             android:windowSoftInputMode="stateHidden|adjustResize"
             android:theme="@style/AppTheme" />
 
-        <!--
-            taskAffinity/excludeFromRecents: the first-run wizard lives in a task of its own. The
-            main screen is singleTask, so any Home intent (picking this app as home from the
-            wizard's launcher step, the Home key with the app as home) clears whatever sits above
-            it in its task. Out of that task the wizard survives at the step it was on, and
-            MainActivity's NEW_TASK start brings this task back instead of making a second wizard.
-            It stays out of Recents, where it would be a second card for the same app.
-        -->
         <activity
             android:name=".main.OnboardingActivity"
             android:excludeFromRecents="true"
@@ -269,7 +191,6 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|mediaPlayback|microphone"
             android:stopWithTask="false">
-            <!-- MediaButtonReceiver looks for a Service with this intent-filter -->
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
@@ -279,8 +200,6 @@
             android:name=".main.FloatingButtonService"
             android:exported="false" />
 
-        <!-- Ends the permission record's entry when Android answers, even while AapService is
-             down. Only our own PendingIntents reach it, so it is not exported. -->
         <receiver
             android:name=".connection.usb.UsbPermissionResultReceiver"
             android:exported="false">
@@ -291,9 +210,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- AndroidX MediaButtonReceiver: Routes MEDIA_BUTTON intents to AapService
-             on Android 8+ where implicit broadcasts to manifest-registered receivers
-             are restricted. This is the standard Android mechanism used by HUR. -->
         <receiver
             android:name="androidx.media.session.MediaButtonReceiver"
             android:exported="true">
@@ -302,12 +218,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Handles proprietary headunit command intents (com.android.music.*,
-             com.syu.*, etc). MEDIA_BUTTON is handled by MediaButtonReceiver above. -->
-        <!-- The command surface for automation tools and shell scripts. A receiver rather than
-             an activity because Tasker and MacroDroid can send to one without holding "Display
-             over other apps", which an activity target needs on Android 10+. The configuring
-             actions are refused unless the user turns on "Allow external configuration". -->
         <receiver
             android:name=".automation.AutomationReceiver"
             android:exported="true">
@@ -374,8 +284,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Comprehensive receiver for steering wheel and hardware buttons,
-             covering both standard Android events and proprietary Chinese headunit broadcasts. -->
         <receiver
             android:name=".connection.carkey.CarKeyBroadcastReceiver"
             android:exported="true">
@@ -405,26 +313,19 @@
             android:directBootAware="true"
             android:exported="true">
             <intent-filter>
-                <!-- Standard Android boot -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.USER_UNLOCKED" />
-                <!-- Generic / OEM quick boot -->
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-                <!-- MediaTek IPO (Instant Power On) -->
                 <action android:name="com.mediatek.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.mediatek.intent.action.BOOT_IPO" />
-                <!-- FYT / GLSX head units (ACC ignition wake) -->
                 <action android:name="com.fyt.boot.ACCON" />
                 <action android:name="com.glsx.boot.ACCON" />
                 <action android:name="android.intent.action.ACTION_MT_COMMAND_SLEEP_OUT" />
-                <!-- Microntek / MTCD / PX3 head units (ACC wake) -->
                 <action android:name="com.cayboy.action.ACC_ON" />
                 <action android:name="com.carboy.action.ACC_ON" />
-                <!-- XYAuto head units (ACC wake) -->
                 <action android:name="xy.android.acc.on" />
-                <!-- Autochips / MediaTek QuickBoot units (ACC wake) -->
                 <action android:name="autochips.intent.action.QB_POWERON" />
             </intent-filter>
         </receiver>
@@ -460,15 +361,12 @@
                 <action android:name="com.andrerinas.openheadunit.ACTION_DISCONNECT" />
                 <action android:name="com.andrerinas.openheadunit.ACTION_START_SELF_MODE" />
                 <action android:name="com.andrerinas.openheadunit.ACTION_STOP_SERVICE" />
-
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data
                     android:host="connect"
                     android:scheme="headunit" />
