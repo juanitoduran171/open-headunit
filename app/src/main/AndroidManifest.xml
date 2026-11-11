@@ -6,26 +6,6 @@
         com.google.android.gms.nearby, com.google.android.gms.base, com.google.android.gms.tasks, com.google.android.gms.common,
         rikka.shizuku.provider, rikka.shizuku.api, rikka.shizuku.shared, rikka.shizuku.aidl, com.topjohnwu.superuser" />
 
-    <queries>
-        <package android:name="com.xygala.bluetooth" />
-        <package android:name="moe.shizuku.privileged.api" />
-        <package android:name="com.syu.ms" />
-        <package android:name="android.microntek.mtcser" />
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-        <package android:name="com.google.android.projection.gearhead" />
-        <package android:name="com.zjinnova.zlink" />
-        <package android:name="com.syu.carlink" />
-        <package android:name="com.zjinnova.zlink5" />
-        <package android:name="cn.manstep.phonemirrorBox" />
-        <package android:name="cn.manstep.phonemirrorBox.nomap" />
-        <package android:name="com.autokit" />
-        <package android:name="com.suding.speedplay" />
-        <package android:name="com.tlink.carplay" />
-    </queries>
-
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
