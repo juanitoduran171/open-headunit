@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    compileSdk = 36
+    compileSdk = 34
     ndkVersion = "29.0.14206865"
     namespace = "com.andrerinas.openheadunit"
 
@@ -84,7 +84,7 @@ android {
 
     defaultConfig {
         applicationId = "com.andrerinas.headunitmedia"
-        minSdk = 21
+        minSdk = 16
         targetSdk = 28
         versionCode = 123
         versionName = "4.0.0"
